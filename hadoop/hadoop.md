@@ -476,3 +476,180 @@ YARN|NodeManager|ResourceManager</br></br>NodeManager|NodeManager
 
   * 这是配置了201免密登录202和203,同理也要在202和203上进行相同的操作
     * `至此免密登录配置完毕`
+
+* 修改hadoop配置文件
+  * `core-site.xml`
+
+    ```xml
+    <!-- 指定HDFS中NameNode的地址 -->
+  	<property>
+  		<name>fs.defaultFS</name>
+          <value>hdfs://hadoop01:9000</value>
+  	</property>
+
+  	<!-- 指定hadoop运行时产生文件的存储目录 -->
+  	<property>
+  		<name>hadoop.tmp.dir</name>
+  		<value>/home/yetao_yang/hadoop/data/tmp</value>
+  	</property>
+    ```
+  * HDFS
+    * `hadoop-env.sh`
+      * `export JAVA_HOME=/home/yetao_yang/jdk/jdk1.8.0_201`
+    * `hdfs-site.xml`
+
+      ```xml
+      <property>
+    		<name>dfs.replication</name>
+    		<value>3</value>
+    	</property>
+
+    	<property>
+        <name>dfs.namenode.secondary.http-address</name>
+        <value>hadoop03:50090</value>
+      </property>
+      ```
+    * `slaves`
+      ```
+      hadoop01
+      hadoop02
+      hadoop03
+      ```
+  * YARN
+    * `yarn-env.sh`
+      * `export JAVA_HOME=/home/yetao_yang/jdk/jdk1.8.0_201`
+    * `yarn-site.xml`
+      ```xml
+      <!-- reducer获取数据的方式 -->
+    	<property>
+    		 <name>yarn.nodemanager.aux-services</name>
+    		 <value>mapreduce_shuffle</value>
+    	</property>
+
+    	<!-- 指定YARN的ResourceManager的地址 -->
+    	<property>
+    		<name>yarn.resourcemanager.hostname</name>
+    		<value>hadoop02</value>
+    	</property>
+      ```
+  * MAPREDUCE
+    * `mapred-env.sh`
+      * `export JAVA_HOME=/home/yetao_yang/jdk/jdk1.8.0_201`
+    * `mapred-site.xml`
+      ```xml
+      <!-- 指定mr运行在yarn上 -->
+    	<property>
+    		<name>mapreduce.framework.name</name>
+    		<value>yarn</value>
+    	</property>
+      ```
+* 分发配置
+  * 把hadoop01上配置的hadoop,通过scp发送到另外两台服务器上面去
+
+* 启动集群
+  * 如果为第一次启动集群 需要格式化`namenode` 格式化namenode的注意事项上面有讲
+  * 启动`hdfs`
+    ```shell
+    [yetao_yang@hadoop01 sbin]$ start-dfs.sh
+    ```
+  * 启动`yarn`
+    * 启动`yarn`的命令应该在`ResouceManager`所在的机器上启动
+      ```shell
+      [yetao_yang@hadoop02 sbin]$ start-yarn.sh
+      ```
+* 分别查看三台主机的进程状况
+  * `hadoop01`
+    ```shell
+    [yetao_yang@hadoop01 sbin]$ jps
+    11076 DataNode
+    10934 NameNode
+    11481 Jps
+    11339 NodeManager
+    ```
+  * `hadoop02`
+    ```shell
+    [yetao_yang@hadoop02 sbin]$ jps
+    10450 ResourceManager
+    10568 NodeManager
+    10318 DataNode
+    10895 Jps
+    ```
+  * `hadoop03`
+    ```shell
+    [yetao_yang@hadoop03 ~]$ jps
+    20535 NodeManager
+    20348 DataNode
+    20428 SecondaryNameNode
+    20670 Jps
+    ```
+* 查看java服务状况
+  * `hadoop01`
+    ```shell
+    [yetao_yang@hadoop01 hadoop-2.9.2]$ netstat -tpnl | grep java
+    (Not all processes could be identified, non-owned process info
+     will not be shown, you would have to be root to see it all.)
+    tcp        0      0 192.168.1.201:9000      0.0.0.0:*               LISTEN      8419/java           
+    tcp        0      0 0.0.0.0:50070           0.0.0.0:*               LISTEN      8419/java           
+    tcp        0      0 0.0.0.0:50010           0.0.0.0:*               LISTEN      8565/java           
+    tcp        0      0 0.0.0.0:50075           0.0.0.0:*               LISTEN      8565/java           
+    tcp        0      0 0.0.0.0:41789           0.0.0.0:*               LISTEN      8565/java           
+    tcp        0      0 0.0.0.0:50020           0.0.0.0:*               LISTEN      8565/java           
+    tcp6       0      0 :::8040                 :::*                    LISTEN      8831/java           
+    tcp6       0      0 :::8042                 :::*                    LISTEN      8831/java           
+    tcp6       0      0 :::13562                :::*                    LISTEN      8831/java           
+    tcp6       0      0 :::45082                :::*                    LISTEN      8831/java
+    ```
+  * `hadoop02`
+    ```shell
+    [yetao_yang@hadoop02 sbin]$ netstat -tpnl | grep java
+    (Not all processes could be identified, non-owned process info
+     will not be shown, you would have to be root to see it all.)
+    tcp        0      0 0.0.0.0:50010           0.0.0.0:*               LISTEN      8370/java           
+    tcp        0      0 0.0.0.0:50075           0.0.0.0:*               LISTEN      8370/java           
+    tcp        0      0 0.0.0.0:43840           0.0.0.0:*               LISTEN      8370/java           
+    tcp        0      0 0.0.0.0:50020           0.0.0.0:*               LISTEN      8370/java           
+    tcp6       0      0 :::8040                 :::*                    LISTEN      8630/java           
+    tcp6       0      0 :::8042                 :::*                    LISTEN      8630/java           
+    tcp6       0      0 192.168.1.202:8088      :::*                    LISTEN      8493/java           
+    tcp6       0      0 :::13562                :::*                    LISTEN      8630/java           
+    tcp6       0      0 192.168.1.202:8030      :::*                    LISTEN      8493/java           
+    tcp6       0      0 192.168.1.202:8031      :::*                    LISTEN      8493/java           
+    tcp6       0      0 192.168.1.202:8032      :::*                    LISTEN      8493/java           
+    tcp6       0      0 192.168.1.202:8033      :::*                    LISTEN      8493/java           
+    tcp6       0      0 :::37894                :::*                    LISTEN      8630/java
+    ```
+  * `hadoop03`
+    ```shell
+    [yetao_yang@hadoop03 ~]$ netstat -tpnl | grep java
+    (Not all processes could be identified, non-owned process info
+     will not be shown, you would have to be root to see it all.)
+    tcp        0      0 192.168.1.203:50090     0.0.0.0:*               LISTEN      8103/java           
+    tcp        0      0 0.0.0.0:50010           0.0.0.0:*               LISTEN      7992/java           
+    tcp        0      0 0.0.0.0:50075           0.0.0.0:*               LISTEN      7992/java           
+    tcp        0      0 0.0.0.0:37118           0.0.0.0:*               LISTEN      7992/java           
+    tcp        0      0 0.0.0.0:50020           0.0.0.0:*               LISTEN      7992/java           
+    tcp6       0      0 :::8040                 :::*                    LISTEN      8183/java           
+    tcp6       0      0 :::8042                 :::*                    LISTEN      8183/java           
+    tcp6       0      0 :::40018                :::*                    LISTEN      8183/java           
+    tcp6       0      0 :::13562                :::*                    LISTEN      8183/java
+    ```
+* 进入网页端查看
+  * `http://192.168.1.201:50070`
+    ![](./img/image01.jpg)
+  * `http://192.168.1.202:8088/cluster`
+    ![](./img/image02.jpg)
+
+* 测试集群
+  * `hdfs dfs -mkdir -p /yetao_yang/input`
+  * `hdfs dfs -put ./wcinput/wc.input /yetao_yang/input`
+  * `hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.9.2.jar wordcount /yetao_yang/input /yetao_yang/output`
+  * 查看结果
+    ```shell
+    [yetao_yang@hadoop01 hadoop-2.9.2]$ hdfs dfs -cat /yetao_yang/output/part-r-00000
+    a	3
+    b	2
+    c	1
+    d	4
+    e	2
+    f	8
+    ```

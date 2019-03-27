@@ -118,3 +118,269 @@
 * **设置hdfs文件副本数量**
   * `hadoop fs -setrep 10 /yetao_yang/input/wc.input`
     * 设置10,但datanode只有三个所以实际副本只有三个
+
+
+### HDFS的客戶端操作
+
+* 在电脑上配置好`HADOOP_HOME`,具体[网上](http://www.baidu.com)查
+
+* 新建java项目,并加入相关依赖
+
+  ```xml
+  <!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-common -->
+  <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-common</artifactId>
+      <version>2.9.2</version>
+  </dependency>
+  <!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-client -->
+  <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-client</artifactId>
+      <version>2.9.2</version>
+  </dependency>
+  <!-- https://mvnrepository.com/artifact/org.apache.hadoop/hadoop-hdfs -->
+  <dependency>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-hdfs</artifactId>
+      <version>2.9.2</version>
+  </dependency>
+  ```
+
+* 代码演示
+
+```java
+
+@SpringBootTest
+public class HdfsTestApplicationTests {
+    Configuration configuration = new Configuration();
+    //要在windows下配置ip地址映射
+    URI uri = new URI("hdfs://hadoop01:9000");
+    String user = "yetao_yang";
+
+
+    // 创建文件夹
+    @Test
+    public void mkDir() throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri,configuration,user);
+        Path path = new Path("/hdfsDemo/mkdirs/mkdir02");
+        fileSystem.mkdirs(path);
+        fileSystem.close();
+    }
+
+    // 上传文件到指定目录
+    @Test
+    public void uploadFile() throws IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        // 配置文件的副本数 （1）客户端代码中设置的值 >（2）classpath下的用户自定义配置文件 >（3）然后是服务器的默认配置
+        configuration.set("dfs.replication","5");
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        // 源文件
+        Path srcPath = new Path("F:\\srcFile.txt");
+        // 目标文件
+        Path dipPath = new Path("/upload/dip02.txt");
+        fileSystem.copyFromLocalFile(srcPath,dipPath);
+        fileSystem.close();
+    }
+
+    // 从hdfs下载到本地
+    @Test
+    public void downLoadFile() throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        // 源文件
+        Path srcPath = new Path("/upload/dip02.txt");
+        // 目标文件
+        Path dipPath = new Path("F:\\downLoad.txt");
+        fileSystem.copyToLocalFile(false, // 是否删除源文件
+                srcPath, // 源文件
+                dipPath, // 目标文件
+                true // 是否采用本地的文本校验 (false会多产生一个校验的文件)
+        );
+        fileSystem.close();
+    }
+
+    // 文件夹的删除
+    @Test
+    public void deleteDir() throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        Path deleteDir = new Path("/hdfsDemo/mkdirs/mkdir01");
+        fileSystem.delete(deleteDir, // 删除的路径
+                false //是否递归删除
+        );
+        fileSystem.close();
+    }
+
+    // 更改文件名称
+    @Test
+    public void renameFile() throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        Path renameFile = new Path("/upload/dip.txt");
+        Path afterFile = new Path("/upload/dip01.txt");
+        fileSystem.rename(renameFile,afterFile);
+        fileSystem.close();
+    }
+
+    // 文件详情的查看
+    @Test
+    public void readFileInfo() throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        Path file = new Path("/");
+        RemoteIterator<LocatedFileStatus> listfiles = fileSystem.listFiles(
+                file,
+                true // 是否递归
+        );
+        while (listfiles.hasNext()) {
+            System.out.println("------------------------------------------------------");
+            LocatedFileStatus fileStatus = listfiles.next();
+            System.out.println("文件名为 : " + fileStatus.getPath().getName());
+            System.out.println("文件大小为 : " + fileStatus.getLen());
+            System.out.println("文件权限为　："+ fileStatus.getPermission());
+            BlockLocation[] locations = fileStatus.getBlockLocations();
+            System.out.print("文件的存放节点为 : ");
+            for (BlockLocation location : locations) {
+                String[] hosts = location.getHosts();
+                for (String host : hosts) {
+                    System.out.print(" " + host);
+                }
+            }
+            System.out.println();
+            System.out.println("------------------------------------------------------");
+        }
+        fileSystem.close();
+        /**
+         * ------------------------------------------------------
+         * 文件名为 : dip01.txt
+         * 文件大小为 : 21
+         * 文件权限为　：rw-r--r--
+         * 文件的存放节点为 :  hadoop01 hadoop03 hadoop02
+         * ------------------------------------------------------
+         * ------------------------------------------------------
+         * 文件名为 : dip02.txt
+         * 文件大小为 : 21
+         * 文件权限为　：rw-r--r--
+         * 文件的存放节点为 :  hadoop03 hadoop02 hadoop01
+         * ------------------------------------------------------
+         * ------------------------------------------------------
+         * 文件名为 : wc.input
+         * 文件大小为 : 40
+         * 文件权限为　：rw-r--r--
+         * 文件的存放节点为 :  hadoop03 hadoop02 hadoop01
+         * ------------------------------------------------------
+         * ------------------------------------------------------
+         * 文件名为 : _SUCCESS
+         * 文件大小为 : 0
+         * 文件权限为　：rw-r--r--
+         * 文件的存放节点为 :
+         * ------------------------------------------------------
+         * ------------------------------------------------------
+         * 文件名为 : part-r-00000
+         * 文件大小为 : 24
+         * 文件权限为　：rw-r--r--
+         * 文件的存放节点为 :  hadoop02 hadoop03 hadoop01
+         * ------------------------------------------------------
+         * ------------------------------------------------------
+         * 文件名为 : bemove.txk
+         * 文件大小为 : 16
+         * 文件权限为　：rw-r--r--
+         * 文件的存放节点为 :  hadoop02 hadoop03 hadoop01
+         * ------------------------------------------------------
+         */
+    }
+
+    // 文件和文件夹的判断
+    @Test
+    public void isFileOrDir() throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        Path file = new Path("/");
+        FileStatus[] fileStatuses = fileSystem.listStatus(file);
+        for (FileStatus fileStatus : fileStatuses) {
+            if (fileStatus.isFile())
+                System.out.println("文件 : " + fileStatus.getPath().getName());
+            else
+                System.out.println("文件夹 : " + fileStatus.getPath().getName());
+        }
+        /**
+         * 文件夹 : hdfsDemo
+         * 文件夹 : tmp
+         * 文件夹 : upload
+         * 文件夹 : yetao_yang
+         */
+    }
+
+    // 上传文件通过IO流
+    @Test
+    public void uploadFileByIO () throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        // 创建输入流
+        FileInputStream fileInputStream = new FileInputStream(new File("F:\\阿里巴巴java开发规范.pdf"));
+        Path outPath = new Path("/upload/阿里巴巴java开发规范.pdf");
+        // 获取输出流
+        FSDataOutputStream fsDataOutputStream = fileSystem.create(outPath);
+        // 进行流的拷贝
+        IOUtils.copyBytes(fileInputStream, fsDataOutputStream,configuration);// 该方法会自动的关闭 fileInputStream 和 fsDataOutputStream
+        fileSystem.close();
+    }
+
+    // 通过IO流从hdfs下载文件
+    @Test
+    public void downLoadFileByIO () throws IOException, InterruptedException {
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        Path inPath = new Path("/upload/阿里巴巴java开发规范.pdf");
+        // 输入流
+        FSDataInputStream fsDataInputStream = fileSystem.open(inPath);
+        // 输出流
+        FileOutputStream fileOutputStream = new FileOutputStream("F:\\阿里巴巴java开发规范02.pdf");
+        IOUtils.copyBytes(fsDataInputStream,fileOutputStream,configuration);
+        fileSystem.close();
+    }
+
+    // 下载第一块
+    @Test
+    public void readFileSeek1() throws IOException, InterruptedException{
+        // 1 获取文件系统
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        // 2 获取输入流
+        FSDataInputStream fis = fileSystem.open(new Path("/hadoop-2.9.2.tar.gz"));
+        // 3 创建输出流
+        FileOutputStream fos = new FileOutputStream(new File("e:/hadoop-2.9.2.tar.gz.part1"));
+        // 4 流的拷贝
+        byte[] buf = new byte[1024];
+
+        for(int i =0 ; i < 1024 * 128; i++){
+            fis.read(buf);
+            fos.write(buf);
+        }
+        // 5关闭资源
+        IOUtils.closeStream(fis);
+        IOUtils.closeStream(fos);
+    }
+
+    // 下载第二块
+    @Test
+    public void readFileSeek2() throws IOException, InterruptedException{
+        // 1 获取文件系统
+        FileSystem fileSystem = FileSystem.get(uri, configuration,user);
+        // 2 打开输入流
+        FSDataInputStream fis = fileSystem.open(new Path("/hadoop-2.9.2.tar.gz"));
+        // 3 定位输入数据位置
+        fis.seek(1024*1024*128);
+        // 4 创建输出流
+        FileOutputStream fos = new FileOutputStream(new File("e:/hadoop-2.9.2.tar.gz.part2"));
+        // 5 流的对拷
+        IOUtils.copyBytes(fis, fos, configuration);
+        // 6 关闭资源
+        IOUtils.closeStream(fis);
+        IOUtils.closeStream(fos);
+    }
+
+    /**
+     *
+     * 在window命令窗口中执行
+     * type hadoop-2.9.2.tar.gz.part2 >> hadoop-2.9.2.tar.gz.part1
+     *
+     */
+
+    public HdfsTestApplicationTests() throws URISyntaxException {
+    }
+}
+```

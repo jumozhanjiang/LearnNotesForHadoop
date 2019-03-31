@@ -384,3 +384,32 @@ public class HdfsTestApplicationTests {
     }
 }
 ```
+
+### HDFS写数据流程
+  * 客户端向`namenode`请求上传某某文件.
+  * namenode判断该用户是否有上传权限
+  * (如果可以上传) 客户端将文件进行切分,并请求上传第一块的数据
+  * namenode返回datanode给客户端(返回的datanode是最优的几个datanode)
+  * 客户端跟返回的第一个datanode建立通道,并开始把数据传送到该datanode
+  * 传送完成后开始上传第二块
+
+    ![](./img/image01.jpg)
+
+### 网络拓扑概念
+* 节点距离
+  * 两个节点到达最近的共同祖先的距离总和。
+
+    ![](./img/image02.jpg)
+
+### HDFS读数据流程
+
+  ![](./img/image03.jpg)
+
+### NN与2NN的工作机制
+  ![](./img/image04.jpg)
+
+### namenode故障处理
+
+* `将SecondaryNameNode中数据拷贝到NameNode存储数据的目录`
+
+* 重启`namenode`

@@ -327,4 +327,161 @@
   }
   ```
 
-* 伴生类与半生对象
+* 伴生类与伴生对象
+  ```scala
+  // 伴生类
+  class Test01 {
+
+  }
+
+  // 伴生对象
+  object Test01 {
+
+  }
+  ```
+* apply方法
+  ```scala
+  object Run {
+    def main(args: Array[String]): Unit = {
+      var bean : Test02 = Test02() // 直接类名加括号 是调用的伴生对象的apply函数
+      var bean2 : Test02 = new Test02() // new一个对象并没有调用class里面的apply函数
+      bean2() // 实例对象加括号才会默认调用class里面的apply函数
+    }
+  }
+
+  // 这是一个伴生类
+  class Test02 {
+    // class里面的apply
+    def apply() = {
+      println("class 里面的apply")
+    }
+  }
+
+  // 这是一个伴生对象
+  object Test02 {
+    // 对象里面的apply方法
+    def apply() : Test02 = {
+      println("object 里面的apply")
+      new Test02 // 一般在实践里面的做法就是在伴生对象里面new一个对象并返回
+    }
+  }
+  /*
+  object 里面的apply
+  class 里面的apply
+  */
+  ```
+
+* -case class
+  ```scala
+  object ggg {
+    def main(args: Array[String]): Unit = {
+      println(Test03("王麻子").name)
+    }
+  }
+
+  // case 不需要new就可以直接用 一般用到模式匹配里面
+  case class Test03(name : String) {
+  }
+  ```
+
+* -Trait
+  * `Trait xxx extends ATrait with BTrait with CTrait`
+  * 类似于抽象类
+    ```scala
+    class SparkConf() extends ATrait with BTrait with CTrait ...
+    ```
+
+### Scala集合
+
+* 定长数组
+  ```scala
+  object CollectionTest {
+    def main(args: Array[String]): Unit = {
+      // 不可变数组
+      var arr02 = Array("111","222","333") // 声明一个数组
+      arr02.foreach(elem => print(elem + " "))
+      var arr03 = Array(10,20,36,1,74,33)
+      println(arr03.sum)  // 数组元素的求和
+      println(arr03.min)  // 数组求最小值
+      println(arr03.max)  // 数组求最大值
+      println(arr03.mkString("[",",","]")) // 转成String 类型 , 用逗号进行分割, 并在两边加上[]
+
+      println("------------------------------------")
+
+      // 可变数组
+      var d = scala.collection.mutable.ArrayBuffer[Int]()
+      // 添加元素
+      d += 1
+      d += 2
+      // 成批添加元素
+      d += (3,4,5)
+      // 把不可变数组添加进去
+      d ++= Array(6,7,8)
+      println(d)
+      d.insert(0,0) // 在下标为0的位置加上元素0
+      println(d)
+      d.remove(1,2) // 从下边为1的元素向后删除两个
+      println(d)
+      d.trimEnd(2) // 从尾巴开始删除两个元素
+      println(d)
+      var arr04 = d.toArray // 把可变数组转成不可变数组
+      println(arr04.max)
+    }
+  }
+  /*
+  111 222 333 174
+  1
+  74
+  [10,20,36,1,74,33]
+  ------------------------------------
+  ArrayBuffer(1, 2, 3, 4, 5, 6, 7, 8)
+  ArrayBuffer(0, 1, 2, 3, 4, 5, 6, 7, 8)
+  ArrayBuffer(0, 3, 4, 5, 6, 7, 8)
+  ArrayBuffer(0, 3, 4, 5, 6)
+  6
+  */
+  ```
+* List
+  ```scala
+  object CollectionTest {
+    def main(args: Array[String]): Unit = {
+      // 集合
+      var list1 : List[Int] = List(1,2,3,4,5,6) // List(不可变)声明对象的第一种方法
+      var list2 = 1 :: 2 :: 3 :: 4 :: 5 :: 6 :: Nil // List(不可变)声明对象的第二种方法
+      var list3 = ListBuffer[Int]() // 可变List
+      list3 += 1 // 向集合中添加 1 这个元素
+      println(list3.mkString("[", ",", "]"))
+      list3 += (2,3,4,5,6,10) // 向集合添加多个元素
+      println(list3.mkString("[", ",", "]"))
+      list3 -= 10 // 减去10这个元素
+      println(list3.mkString("[", ",", "]"))
+      list3 --= List(2,3,4) // 减去对应List中包含的元素
+      println(list3.mkString("[", ",", "]"))
+    }
+  }
+  /*
+  [1]
+  [1,2,3,4,5,6,10]
+  [1,2,3,4,5,6]
+  [1,5,6]
+  */
+  ```
+
+* Set
+  ```scala
+  object CollectionTest {
+    def main(args: Array[String]): Unit = {
+      var set = Set(1,1,3,5,2,4,6,5,5)
+      set += 10
+      println(set.mkString("[", ",", "]"))
+    }
+  }
+  /*
+  [5,10,1,6,2,3,4]
+  */
+  ```
+
+* Map
+  ```scala
+
+  ```

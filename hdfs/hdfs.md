@@ -413,3 +413,93 @@ public class HdfsTestApplicationTests {
 * `将SecondaryNameNode中数据拷贝到NameNode存储数据的目录`
 
 * 重启`namenode`
+
+### 集群的安全模式
+
+* 概念
+  * `集群处于安全模式，不能执行重要操作（写操作）。集群启动完成后，自动退出安全模`
+
+
+* 基本语法
+  * `bin/hdfs dfsadmin -safemode get`
+    * **查看安全模式状态**
+  * `bin/hdfs dfsadmin -safemode enter`
+    * **进入安全模式状态**
+  * `bin/hdfs dfsadmin -safemode leave`
+    * **离开安全模式状态**
+  * `bin/hdfs dfsadmin -safemode wait`
+    * **等待安全模式状态，监控安全模式**
+
+### DataNode的工作机制
+
+* 一个数据块在DataNode上以文件形式存储在磁盘上，包括两个文件，一个是数据本身，一个是元数据包括数据块的长度，块数据的校验和，以及时间戳。
+* DataNode启动后向NameNode注册，通过后，周期性（1小时）的向NameNode上报所有的块信息。
+* 心跳是每3秒一次，心跳返回结果带有NameNode给该DataNode的命令如复制块数据到另一台机器，或删除某个数据块。如果超过10分钟没有收到某个DataNode的心跳，则认为该节点不可用。
+* 集群运行中可以安全加入和退出一些机器。
+
+![](./img/image05.jpg)
+
+### 数据的完整性
+
+* 当DataNode读取block的时候，它会计算checksum。
+* 如果计算后的checksum，与block创建时值不一样，说明block已经损坏。
+* client读取其他DataNode上的block。
+* datanode在其文件创建后周期验证checksum
+
+![](./img/image06.jpg)
+
+### 服役新数据节点
+
+> 随着公司业务的增长，数据量越来越大，原有的数据节点的容量已经不能满足存储数据的需求，需要在原有集群基础上动态添加新的数据节点。
+
+* 准备一台虚拟机
+* 修改ip地址和主机名
+* 添加免密登录
+* 安装java与hadoop
+* 修改hadoop的配置
+  * 修改`hdfs-site.xml`文件,把副本数改为4
+  * 修改`slaves`文件,添加新的`datanode`
+* 把hadoop发送到新的节点上
+* 刷新`namenode`节点
+  * `hdfs dfsadmin -refreshNodes`
+* 更新resourcemanager节点
+  * `yarn rmadmin -refreshNodes`
+* 单独启动`数据节点`和`节点管理器`
+  * `sbin/hadoop-daemon.sh start datanode`
+  * `sbin/yarn-daemon.sh start nodemanager`
+* 如果数据不均衡,通过命令实现集群的再均衡
+  * `./start-balancer.sh`
+
+### Hadoop2.x的新特性
+
+* 集群间的数据拷贝
+  ```shell
+  [yetao_yang@hadoop01 ]$  hadoop discp
+  hdfs://haoop01:9000/user/atguigu/hello.txt hdfs://hadoop02:9000/user/atguigu/hello.txt
+  ```
+
+### hadoop的存档
+
+> **存小文件的弊端 : ** 每个文件均按块存储，每个块的元数据存储在NameNode的内存中，因此hadoop存储小文件会非常低效。因为大量的小文件会耗尽NameNode中的大部分内存。但注意，存储小文件所需要的磁盘容量和存储这些文件原始内容所需要的磁盘空间相比也不会增多。例如，一个1MB的文件以大小为128MB的块存储，使用的是1MB的磁盘空间，而不是128MB。
+
+* 解决存储小文件办法之一
+  > Hadoop存档文件或HAR文件，是一个更高效的文件存档工具，它将文件存入HDFS块，在减少NameNode内存使用的同时，允许对文件进行透明的访问。具体说来，Hadoop存档文件对内（对于文件本身）还是一个一个独立文件，对NameNode（对外）而言却是一个整体，减少了NameNode的内存。
+
+### HDSF HA 高可用
+
+> 所谓HA（high available），即高可用（7*24小时不中断服务）。
+
+> 实现高可用最关键的策略是消除单点故障。HA严格来说应该分成各个组件的HA机制：HDFS的HA和YARN的HA。
+
+> Hadoop2.0之前，在HDFS集群中NameNode存在单点故障（SPOF）。
+
+  >
+* NameNode主要在以下两个方面影响HDFS集群
+* NameNode机器发生意外，如宕机，集群将无法使用，直到管理员重启
+*	NameNode机器需要升级，包括软件、硬件升级，此时集群也将无法使用
+* HDFS HA功能通过配置Active/Standby两个nameNodes实现在集群中对NameNode的热备来解决上述问题。如果出现故障，如机器崩溃或机器需要升级维护，这时可通过此种方式将NameNode很快的切换到另外一台机器。
+* **HDFS-HA工作机制**
+  * **通过双namenode消除单点故障**
+
+* HDFS-HA工作要点
+*

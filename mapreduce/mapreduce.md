@@ -435,3 +435,10 @@
   }
   ```
 * 在`windows`环境中进行测试(与需求一的过程一样)
+
+
+### MapReduce详细工作流程
+
+![](./img/image01.png)
+
+![](./img/image02.png)

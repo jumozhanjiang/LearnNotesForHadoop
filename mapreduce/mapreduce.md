@@ -442,3 +442,180 @@
 ![](./img/image01.png)
 
 ![](./img/image02.png)
+
+### 小文件优化策略
+
+> 最好的办法，在数据处理系统的最前端（预处理/采集），将小文件先合并成大文件，再上传到HDFS做后续分析。
+
+> 补救措施：如果已经是大量小文件在HDFS中了，可以使用另一种InputFormat来做切片（CombineTextInputFormat），它的切片逻辑跟TextFileInputFormat不同：它可以将多个小文件从逻辑上规划到一个切片中，这样，多个小文件就可以交给一个maptask。<br>优先满足最小切片，不超过最大切片大小
+  * 在Driver代码里面配置InputFormat的类型并设置切片的最大值与最小值
+    ```java
+    // 指定inputformat的类型
+    job.setInputFormatClass(CombineTextInputFormat.class);
+    CombineTextInputFormat.setMaxInputSplitSize(job, 4194304); // 4M
+    CombineTextInputFormat.setMinInputSplitSize(job, 2097152); // 2M
+    ```
+
+### 需求三
+> 过滤输入的log日志中是否包含yangyetao<br>包含yangyetao的输入到一个文件夹,不包含的输入到另一个文件夹
+* 输入数据格式为
+  ```
+  http://www.baidu.com
+  http://www.google.com
+  http://cn.bing.com
+  http://www.yangyetao.com
+  http://www.sohu.com
+  http://www.sina.com
+  http://www.sin2a.com
+  http://www.sin2desa.com
+  http://www.sindsafa.com
+  ```
+* 输出预期
+  ```
+  http://www.yangyetao.com
+  ```
+  <hr>
+  ```
+  http://www.baidu.com
+  http://www.google.com
+  http://cn.bing.com
+  http://www.sohu.com
+  http://www.sina.com
+  http://www.sin2a.com
+  http://www.sin2desa.com
+  http://www.sindsafa.com
+  ```
+* 书写`Mapper`
+  ```java
+  public class LogMapper extends Mapper<LongWritable, Text, Text, NullWritable> {
+      @Override
+      protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+          context.write(value, NullWritable.get());
+      }
+  }
+  ```
+* 书写`Reduce`
+  ```java
+  public class LogReduce extends Reducer<Text, NullWritable, Text, NullWritable> {
+      @Override
+      protected void reduce(Text key, Iterable<NullWritable> values, Context context) throws IOException, InterruptedException {
+          String line = key.toString();
+          String str = line +"\n";
+          context.write(new Text(str), NullWritable.get());
+      }
+  }
+  ```
+* 自定义`outputformat`
+  ```java
+  public class LogOutputFormat extends FileOutputFormat<Text, NullWritable> {
+      public RecordWriter<Text, NullWritable> getRecordWriter(TaskAttemptContext job) throws IOException, InterruptedException {
+          RecordWriter<Text, NullWritable> recordWriter = new LogRecordWriter(job);
+          return recordWriter;
+      }
+  }
+  ```
+* 自定义`RecordWriter`
+  ```java
+  public class LogRecordWriter extends RecordWriter<Text, NullWritable> {
+      FSDataOutputStream path01 = null;
+      FSDataOutputStream path02 = null;
+      FileSystem fileSystem = null;
+      public LogRecordWriter(TaskAttemptContext job) {
+          Configuration configuration = job.getConfiguration();
+          try {
+              // 获取客户端
+              fileSystem = FileSystem.get(configuration);
+              // 输出流
+              Path path1 = new Path("f:/yangyetao.txt");
+              Path path2 = new Path("f:/other.txt");
+              path01 = fileSystem.create(path1);
+              path02 = fileSystem.create(path2);
+          } catch (IOException e) {
+              e.printStackTrace();
+          }
+      }
+      public void write(Text key, NullWritable nullWritable) throws IOException, InterruptedException {
+          String line = key.toString();
+          // 判断数据中是否包含yangyetao
+          if(line.contains("yangyetao")){
+              path01.write(line.getBytes());
+          } else {
+              path02.write(line.getBytes());
+          }
+      }
+      public void close(TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
+          IOUtils.closeStream(path01);
+          IOUtils.closeStream(path02);
+          fileSystem.close();
+      }
+  }
+  ```
+* 书写`Driver`
+  ```java
+  public class LogDriver  {
+      public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+          // 获取job对象
+          Configuration configuration = new Configuration();
+          Job job = Job.getInstance(configuration);
+          job.setJarByClass(LogDriver.class);
+          job.setMapperClass(LogMapper.class);
+          job.setReducerClass(LogReduce.class);
+          //
+          job.setMapOutputKeyClass(Text.class);
+          job.setMapOutputValueClass(NullWritable.class);
+          //
+          job.setOutputKeyClass(Text.class);
+          job.setOutputValueClass(NullWritable.class);
+          //
+          job.setOutputFormatClass(LogOutputFormat.class);
+          // 设置输入数据的路径
+          FileInputFormat.setInputPaths(job, new Path(args[0]));
+          // 设置输出路径
+          FileOutputFormat.setOutputPath(job, new Path(args[1]));
+          // 提交
+          boolean flag = job.waitForCompletion(true);
+          System.exit(flag ? 0 : 1);
+      }
+  }
+  ```
+* 启动`Driver`<br>
+  ![](./img/image06.jpg)
+* 输出的文件结果分别在`f:/yangyetao.txt`和`f:/other.txt`
+* mapreudce的`SUCCESS`文件在`F:\mapreduce_test_output\log\output01`路径下
+
+### Reduce的join操作
+
+> **原理**<br>Map端的主要工作：为来自不同表(文件)的key/value对打标签以区别不同来源的记录。然后用连接字段作为key，其余部分和新加的标志作为value，最后进行输出。<br>**缺点**<br>这种方式的缺点很明显就是会造成map和reduce端也就是shuffle阶段出现大量的数据传输，效率很低。
+
+#### 需求
+> **订单数据**
+
+id | pid | amount
+-- | -- | :--
+1001 | 01 | 1
+1002 | 02 | 2
+1003 | 03 | 3
+1004 | 01 | 4
+1005 | 02 | 5
+1006 | 03 | 6
+> **商品信息表**
+
+pid | pname
+-- | --
+01 | 小米
+02 | 华为
+03 | 格力
+
+> **关联后的结果**
+
+id | pname | amount
+-- | -- | :--
+1001 | 小米 | 1
+1002 | 华为 | 2
+1003 |格力 | 3
+1004 | 小米 | 4
+1005 | 华为 | 5
+1006 | 格力 | 6
+
+> **思路**<br>将关联条件（pid）作为map输出的key，将两张表满足join条件的数据封装起来，并携带数据所来源的文件信息，一起发往同一个reduce task，在reduce中进行数据的串联<br>
+![](./img/image07.jpg)

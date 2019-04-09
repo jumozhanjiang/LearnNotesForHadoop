@@ -619,3 +619,282 @@ id | pname | amount
 
 > **思路**<br>将关联条件（pid）作为map输出的key，将两张表满足join条件的数据封装起来，并携带数据所来源的文件信息，一起发往同一个reduce task，在reduce中进行数据的串联<br>
 ![](./img/image07.jpg)
+* 书写`TableBean`类
+  ```java
+  public class TableBean implements Writable {
+      private String orderId;
+      private String pid;
+      private int amount;
+      private String pname;
+      private String flag;
+      public String getOrderId() {
+          return orderId;
+      }
+      public void setOrderId(String orderId) {
+          this.orderId = orderId;
+      }
+      public String getPid() {
+          return pid;
+      }
+      public void setPid(String pid) {
+          this.pid = pid;
+      }
+      public int getAmount() {
+          return amount;
+      }
+      public void setAmount(int amount) {
+          this.amount = amount;
+      }
+      public String getPname() {
+          return pname;
+      }
+      public void setPname(String pname) {
+          this.pname = pname;
+      }
+      public String getFlag() {
+          return flag;
+      }
+      public void setFlag(String flag) {
+          this.flag = flag;
+      }
+      @Override
+      public String toString() {
+          return orderId + "\t" +  amount + "\t" + pname;
+      }
+      public void write(DataOutput out) throws IOException {
+          out.writeUTF(orderId);
+          out.writeUTF(pid);
+          out.writeInt(amount);
+          out.writeUTF(pname);
+          out.writeUTF(flag);
+      }
+      public void readFields(DataInput in) throws IOException {
+          orderId = in.readUTF();
+          pid = in.readUTF();
+          amount = in.readInt();
+          pname = in.readUTF();
+          flag = in.readUTF();
+      }
+  }
+  ```
+* 书写`Mapper`类
+  ```java
+  public class TableMapper extends Mapper<LongWritable, Text, Text, TableBean> {
+      TableBean tableBean = new TableBean();
+      Text k = new Text();
+      @Override
+      protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+          FileSplit split = (FileSplit) context.getInputSplit();
+          // 获取文件名
+          String name = split.getPath().getName();
+          // 解决中文乱码
+          String line = new String(value.getBytes(),0,value.getLength(),"GBK");
+          // 根据文件名判断文件类型
+          if( name.startsWith("order")){
+              String[] fields = line.split("\t");
+              tableBean.setOrderId(fields[0]);
+              tableBean.setPid(fields[1]);
+              tableBean.setAmount(Integer.parseInt(fields[2]));
+              tableBean.setPname("");
+              tableBean.setFlag("0");
+              k.set(fields[1]);
+              context.write(k,tableBean);
+          }else {
+              String[] fields = line.split("\t");
+              tableBean.setOrderId("");
+              tableBean.setPid(fields[0]);
+              tableBean.setAmount(0);
+              tableBean.setPname(fields[1]);
+              tableBean.setFlag("1");
+              k.set(fields[0]);
+              context.write(k,tableBean);
+          }
+      }
+  }
+  ```
+* 书写`Reduce`类
+  ```java
+  public class TableReduce extends Reducer<Text, TableBean, NullWritable, TableBean> {
+      @Override
+      protected void reduce(Text key, Iterable<TableBean> values, Context context) throws IOException, InterruptedException {
+          // 用来接收order表的数据
+          List<TableBean> orderList = Lists.newArrayList();
+          // 用来接受pd表的数据
+          TableBean tableBean = new TableBean();
+          for (TableBean value : values) {
+              // order表
+              if ( value.getFlag().equals("0")) {
+                  TableBean oBean = new TableBean();
+                  try {
+                      BeanUtils.copyProperties(oBean, value);
+                      orderList.add(oBean);
+                  } catch (IllegalAccessException e) {
+                      e.printStackTrace();
+                  } catch (InvocationTargetException e) {
+                      e.printStackTrace();
+                  }
+              } else {
+                  try {
+                      BeanUtils.copyProperties(tableBean, value);
+                  } catch (IllegalAccessException e) {
+                      e.printStackTrace();
+                  } catch (InvocationTargetException e) {
+                      e.printStackTrace();
+                  }
+              }
+          }
+          for (TableBean orderbean : orderList) {
+              orderbean.setPname(tableBean.getPname());
+              context.write(NullWritable.get(), orderbean);
+          }
+      }
+  }
+  ```
+* 书写`Driver`类
+  ```java
+  public class TableDriver {
+      public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+          // 1 获取配置信息，或者job对象实例
+          Configuration configuration = new Configuration();
+          Job job = Job.getInstance(configuration);
+          // 2 指定本程序的jar包所在的本地路径
+          job.setJarByClass(TableDriver.class);
+          // 3 指定本业务job要使用的mapper/Reducer业务类
+          job.setMapperClass(TableMapper.class);
+          job.setReducerClass(TableReduce.class);
+          // 4 指定mapper输出数据的kv类型
+          job.setMapOutputKeyClass(Text.class);
+          job.setMapOutputValueClass(TableBean.class);
+          // 5 指定最终输出的数据的kv类型
+          job.setOutputKeyClass(TableBean.class);
+          job.setOutputValueClass(NullWritable.class);
+          // 6 指定job的输入原始文件所在目录
+          FileInputFormat.setInputPaths(job, new Path(args[0]));
+          FileOutputFormat.setOutputPath(job, new Path(args[1]));
+          // 7 将job中配置的相关参数，以及job所用的java类所在的jar包， 提交给yarn去运行
+          boolean result = job.waitForCompletion(true);
+          System.exit(result ? 0 : 1);
+      }
+  }
+  ```
+* 配置参数<br>
+  ![](./img/image03.png)
+* 查看结果<br>
+  ![](./img/image04.png)
+
+
+  ### Mapper的join操作
+  > 因为合并的操作是在reduce阶段完成，reduce端的处理压力太大，map节点的运算负载则很低，资源利用率不高，且在reduce阶段极易产生数据倾斜,和数据的IO 所以改用map进行join操作
+  * 使用场景
+    * 一张表很小,一张表又十分的大
+  * 解决方案
+    * 在map端缓存多张表，提前处理业务逻辑，这样增加map端业务，减少reduce端数据的压力，尽可能的减少数据倾斜。
+  * 具体办法
+    * 在mapper的setup阶段，将文件读取到缓存集合中。
+    * 在驱动函数中加载缓存。
+  ![](img/image08.jpg)<br><br>
+  * 书写`Mapper`
+    ```java
+    public class MapJoinMapper extends Mapper<LongWritable, Text, Text, NullWritable> {
+        Map<String, String> map = Maps.newHashMap();
+        Text text = new Text();
+        /**
+         * 先缓存pd表
+         * @param context
+         * @throws IOException
+         * @throws InterruptedException
+         */
+        @Override
+        protected void setup(Context context) throws IOException, InterruptedException {
+            FileInputStream fis = new FileInputStream("F:\\mapreduce_test_input\\reduce\\pd.txt");
+            InputStreamReader isr = new InputStreamReader(fis, "GBK");
+            BufferedReader br = new BufferedReader(isr);
+            String line = null;
+            while(StringUtils.isNotEmpty(line = br.readLine())){
+                String[] fields = line.split("\t");
+                map.put(fields[0], fields[1]);
+            }
+            br.close();
+            isr.close();
+            fis.close();
+        }
+        @Override
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String line = value.toString();
+            String[] fields = line.split("\t");
+            String pid = fields[1];
+            String pname = map.get(pid);
+            String str = line + "\t" + pname + "\n";
+            value.set(str);
+            context.write(value, NullWritable.get());
+        }
+    }
+    ```
+  * 书写`Driver`
+    ```java
+    public class MapJoinDriver {
+        public static void main(String[] args) throws IOException,
+                URISyntaxException,
+                ClassNotFoundException,
+                InterruptedException {
+            // 1 获取job信息
+            Configuration configuration = new Configuration();
+            Job job = Job.getInstance(configuration);
+            // 2 设置加载jar包路径
+            job.setJarByClass(MapJoinDriver.class);
+            // 3 关联map
+            job.setMapperClass(MapJoinMapper.class);
+            // 4 设置最终输出数据类型
+            job.setOutputKeyClass(Text.class);
+            job.setOutputValueClass(NullWritable.class);
+            // 5 设置输入输出路径
+            FileInputFormat.setInputPaths(job, new Path(args[0]));
+            FileOutputFormat.setOutputPath(job, new Path(args[1]));
+            // 6 加载缓存数据
+            job.addCacheFile(new URI("file:///F:/mapreduce_test_input/reduce/pd.txt"));
+            // 7 map端join的逻辑不需要reduce阶段，设置reducetask数量为0
+            job.setNumReduceTasks(0);
+            // 8 提交
+            boolean result = job.waitForCompletion(true);
+            System.exit(result ? 0 : 1);
+        }
+    }
+    ```
+  * 配置参数<br>
+    ![](./img/image09.jpg)
+
+
+  ### Mapreduce开发总结
+  * 输入接口`InputFormat`
+    * 默认的实现类是`TextInputFormat `
+      * 一次读一行文本，然后将该行的起始偏移量作为key，行内容作为value返回。
+    * `KeyValueTextInputFormat`
+      * 每一行均为一条记录，被分隔符分割为key，value。默认分隔符是tab（\t）。
+    * `NlineInputFormat`
+      * 按照指定的行数N来划分切片。
+    * `CombineTextInputFormat`
+      * 可以把多个小文件合并成一个切片处理，提高处理效率。
+    * 用户还可以自定义InputFormat。
+  * 逻辑处理接口：`Mapper`
+    * 用户根据业务需求实现其中三个方法：`map()`   `setup()`   `cleanup()`
+  * `Partitioner`分区
+    * 有默认实现 HashPartitioner，逻辑是根据key的哈希值和numReduces来返回一个分区号`key.hashCode()&Integer.MAXVALUE % numReduces`
+  * `Comparable`排序
+    * 当我们用自定义的对象作为key来输出时，就必须要实现WritableComparable接口，重写其中的compareTo()方法。
+    * 部分排序
+      * 对最终输出的每一个文件进行内部排序
+    * 全排序
+      * 对所有数据进行排序，通常只有一个Reduce
+    * 二次排序
+      * 排序的条件有两个
+  * `Combiner`合并
+    * Combiner合并可以提高程序执行效率，减少io传输。但是使用时必须不能影响原有的业务处理结果。
+  * reduce端分组：Groupingcomparator
+    > reduceTask拿到输入数据（一个partition的所有数据）后，首先需要对数据进行分组，其分组的默认原则是key相同，然后对每一组kv数据调用一次reduce()方法，并且将这一组kv中的第一个kv的key作为参数传给reduce的key，将这一组数据的value的迭代器传给reduce()的values参数。<br >
+    利用上述这个机制，我们可以实现一个高效的分组取最大值的逻辑。
+  	自定义一个bean对象用来封装我们的数据，然后改写其compareTo方法产生倒序排序的效果。然后自定义一个Groupingcomparator，将bean对象的分组逻辑改成按照我们的业务分组id来分组（比如订单号）。这样，我们要取的最大值就是reduce()方法中传进来key。
+  * 逻辑处理接口：Reducer
+    * 用户根据业务需求实现其中三个方法：reduce()   setup()   cleanup ()
+  * 输出数据接口：OutputFormat
+    * 默认实现类是TextOutputFormat，功能逻辑是：将每一个KV对向目标文本文件中输出为一行
+    * SequenceFileOutputFormat将它的输出写为一个顺序文件。如果输出需要作为后续 MapReduce任务的输入，这便是一种好的输出格式，因为它的格式紧凑，很容易被压缩。

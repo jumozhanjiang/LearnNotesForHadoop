@@ -311,7 +311,7 @@ mapreduce.output.fileoutputformat.compress.type<br>（在mapred-site.xml中配�
 * **先执行第一组的mapreduce,然后把第一组的结果作为第二组的参数进行传入**
 
 ### 查找共同好友
-* **需求-->输入**`冒号左边是单个用户,右边是该用户的好友数`
+* **需求-->输入**`冒号左边是单个用户,右边是该用户的好友`
 	```
 	A:B,C,D,F,E,O
 	B:A,C,E,K
@@ -634,3 +634,15 @@ mapreduce.map.sort.spill.percent | 环形缓冲区溢出的阈值，默认80%
 mapreduce.map.maxattempts | 每个Map Task最大重试次数，一旦重试参数超过该值，则认为Map Task运行失败，默认值：4
 mapreduce.reduce.maxattempts | 每个Reduce Task最大重试次数，一旦重试参数超过该值，则认为Map Task运行失败，默认值：4
 mapreduce.task.timeout | Task超时时间，经常需要设置的一个参数，该参数表达的意思为：如果一个task在一定时间内没有任何进入，即不会读取新的数据，也没有输出数据，则认为该task处于block状态，可能是卡住了，也许永远会卡住，为了防止因为用户程序永远block住不退出，则强制设置了一个该超时时间（单位毫秒），默认是600000。如果你的程序对每条输入数据的处理时间过长（比如会访问数据库，通过网络拉取数据等），建议将该参数调大，该参数过小常出现的错误提示是“AttemptID:attempt_14267829456721_123456_m_000224_0 Timed out after 300 secsContainer killed by the ApplicationMaster.”
+
+### 小文件的优化
+
+* `Hadoop Archive`
+	* 是一个高效地将小文件放入HDFS块中的文件存档工具，它能够将多个小文件打包成一个HAR文件，这样就减少了namenode的内存使用。
+* `Sequence file`
+	* sequence file由一系列的二进制key/value组成，如果key为文件名，value为文件内容，则可以将大批小文件合并成一个大文件
+* `CombineFileInputFormat`
+	* CombineFileInputFormat是一种新的inputformat，用于将多个文件合并成一个单独的split，另外，它会考虑数据的存储位置
+* **<font style="color : red">开启JVM重用</font>**
+	* 对于大量小文件Job，可以开启JVM重用会减少45%运行时间。JVM重用理解：一个map运行一个jvm，重用的话，在一个map在jvm上运行完毕后，jvm继续运行其他map
+	* 具体设置：mapreduce.job.jvm.numtasks值在10-20之间

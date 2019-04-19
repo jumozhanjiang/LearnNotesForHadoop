@@ -110,3 +110,130 @@ Hive是基于Hadoop的一个数据仓库工具，可以将结构化的数据文�
 
 * 启动Hive
   * `bin/hive`
+
+
+  ### Hive常用命令
+
+  [hive官网](https://cwiki.apache.org/confluence/display/Hive/LanguageManual+Cli)
+
+  ### 建表语句示例
+
+  ```
+  CREATE EXTERNAL TABLE `table_name`(
+  `timestamp` bigint,
+  `insert_time` bigint,
+  `name` string,
+  `age` smallint,
+  `sex` string,
+  `message` string
+  )PARTITIONED BY (
+  `month` bigint,
+  `day` bigint)
+  ROW FORMAT SERDE
+  'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'
+  WITH SERDEPROPERTIES (
+  'field.delim'='\b',
+  'serialization.format'='\b')
+  STORED AS INPUTFORMAT
+  'org.apache.hadoop.mapred.TextInputFormat'
+  OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+  LOCATION
+  'hdfs://hadoop01:9000/hive_data/table_name'
+  TBLPROPERTIES (
+  'transient_lastDdlTime'='1534123505');
+  ```
+  * `PARTITIONED BY`
+    * 建立分区
+  * `field.delim`
+    * 字段分割符
+  * `serialization.format`
+    * 序列化格式
+  * `hdfs://hadoop01:9000/hive_data/table_name`
+    * `hadoop01:9000`
+      * namenode的地址,如果是高可用, 要填写namenode的集群名称
+    * `/hive_data/table_name`
+      * 该表要对`/hive_data/table_name`里面的数据建立映射关系
+
+  <hr>
+  * `msck repair table table_name;`
+    * Hive会检测如果HDFS目录下存在但表的metastore中不存在的partition元信息，更新到metastore中。
+
+  ### 安装MySQL
+  * 下载mysql源安装包
+    * `wget http://dev.mysql.com/get/mysql57-community-release-el7-8.noarch.rpm`
+  * 安装mysql源
+    * `yum localinstall mysql57-community-release-el7-8.noarch.rpm`
+  * 安装MySQL
+    * `yum install mysql-community-server`
+  * 启动MySQL服务
+    * `systemctl start mysqld`
+  * 查看MySQL的启动状态
+    * `systemctl status mysqld`
+  * 开机启动
+    * `systemctl enable mysqld`
+    * `systemctl daemon-reload`
+  * 修改密码策略
+    * 在/etc/my.cnf文件添加validate_password_policy配置，指定密码策略
+    * `#选择0（LOW），1（MEDIUM），2（STRONG）其中一种，选择2需要提供密码字典文件`
+      * `validate_password_policy=0`
+    * 如果不需要密码策略，添加my.cnf文件中添加如下配置禁用即可：
+      * `validate_password = off`
+    * 重新启动mysql服务使配置生效：
+      * `systemctl restart mysqld`
+  * 修改root本地登录密码
+    * mysql安装完成之后，在/var/log/mysqld.log文件中给root生成了一个默认密码。通过下面的方式找到root默认密码，然后登录mysql进行修改：
+    * `grep 'temporary password' /var/log/mysqld.log`
+    * `mysql -uroot -p`
+    * `mysql> SET PASSWORD FOR 'root'@'localhost' = PASSWORD('newpass');`
+  * 允许root用户远程登录
+    * 切换到mysql这个数据库
+      * `mysql> use mysql;`
+    * 查看root用户配置
+      * `mysql> select host,user from user where user='root';`
+    * 修改root配置
+      * `mysql> update user set host = '%' where user = 'root' and host = '127.0.0.1';`
+    * 给用户授权
+      * `mysql> grant all privileges on *.* to 'root'@'%' identified by '123456' with grant option;`
+    * 使配置生效
+      * `mysql> flush privileges;`
+
+  ### Hive元数据配置到MySql
+  * 驱动拷贝
+    * 把附件里的文件拷贝到`hive/lib/`目录下
+  * 在`/opt/module/hive/conf`目录下创建一个`hive-site.xml`并进行配置
+    ```xml
+    <?xml version="1.0"?>
+    <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+    <configuration>
+    	<property>
+    	  <name>javax.jdo.option.ConnectionURL</name>
+    	  <value>jdbc:mysql://hadoop04:3306/metastore?createDatabaseIfNotExist=true</value>
+    	  <description>JDBC connect string for a JDBC metastore</description>
+    	</property>
+
+    	<property>
+    	  <name>javax.jdo.option.ConnectionDriverName</name>
+    		<!-- 驱动 -->
+    	  <value>com.mysql.jdbc.Driver</value>
+    	  <description>Driver class name for a JDBC metastore</description>
+    	</property>
+
+    	<property>
+    	  <name>javax.jdo.option.ConnectionUserName</name>
+    		<!-- 用户 -->
+    	  <value>root</value>
+    	  <description>username to use against metastore database</description>
+    	</property>
+
+    	<property>
+    	  <name>javax.jdo.option.ConnectionPassword</name>
+    		<!-- 密码 -->
+    	  <value>123456</value>
+    	  <description>password to use against metastore database</description>
+    	</property>
+    </configuration>
+    ```
+  * 启动hive
+    * `bin/hive --service metastore -p 9083`
+      * 启用服务端与客户端服务

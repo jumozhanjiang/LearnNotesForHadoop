@@ -95,7 +95,7 @@ hive.config.resources=/home/yetao_yang/hadoop/hadoop-2.9.2/etc/hadoop/core-site.
   * 需要与hive的metastore地址和端口对应
 * `hive.config.resources`
   * 需要与hadoop集群的配置路径对应
-* <font style="color : red">更多配置信息请千万presto官网</font>
+* <font style="color : red">更多配置信息请前往presto官网</font>
 
 ### 启动presto服务端
 

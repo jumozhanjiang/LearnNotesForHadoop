@@ -12,7 +12,7 @@
 > 修改`config/elasticsearch.yml`文件,添加以下内容
 
 
-
+### ElasticSearch 7.x 版本
 ```
 # 集群名称
 cluster.name: log-pioneer
@@ -30,6 +30,32 @@ http.port: 9200
 discovery.seed_hosts: ["elk01", "elk02"]
 # 集群初始化的主节点名称
 cluster.initial_master_nodes: ["node-1", "node-2"]
+# 检测到多少个节点后开始备份数据
+gateway.recover_after_nodes: 5
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+network.bind_host: 0.0.0.0
+```
+
+### Elasticsearch 6.x 版本
+
+```
+# 集群名称
+cluster.name: log-pioneer
+# 节点名称
+node.name: node-1
+# 数据存放目录
+path.data: /home/dp_elk/elasticsearch/data
+# 日志存放目录
+path.logs: /home/dp_elk/elasticsearch/logs
+# ip地址
+network.host: elk01
+# 端口号
+http.port: 9200
+# 集群地址
+discovery.zen.ping.unicast.hosts: [elk01", "elk02", "elk03", "elk04", "elk05"]
+# 集群初始化的主节点名称
+discovery.zen.minimum_master_nodes: 1
 # 检测到多少个节点后开始备份数据
 gateway.recover_after_nodes: 5
 http.cors.enabled: true
@@ -363,6 +389,8 @@ end
 
 * 查看指定机器上kafka的相关topics
   * `./bin/kafka-topics.sh --list --zookeeper hadoop02:2181`
+* docker编译jar应用(基本)
+  * `docker build -t front:1.0-SNAPSHOT .`
 * 启动docker应用, 并把日志文件以tcp的方式发送到指定的地址
   * `docker run --name=ss3 --log-driver syslog  --log-opt syslog-address=tcp://elk01:9990 --log-opt tag="**********test********" -d -p 8888:8888 648`
 

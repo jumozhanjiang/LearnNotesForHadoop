@@ -232,8 +232,152 @@ Hive是基于Hadoop的一个数据仓库工具，可以将结构化的数据文�
     	  <value>123456</value>
     	  <description>password to use against metastore database</description>
     	</property>
+
+    	<property>
+    	  <name>hive.metastore.schema.verification</name>
+    	  <value>false</value>
+    	</property>
+
+    	<property>
+    	  <name>datanucleus.readOnlyDatastore</name>
+    	  <value>false</value>
+    	</property>
+    	<property> 
+    	  <name>datanucleus.fixedDatastore</name>
+    	  <value>false</value> 
+    	</property>
+    	<!--  自动创建数据库  -->
+    	<property> 
+    	  <name>datanucleus.autoCreateSchema</name> 
+    	  <value>true</value> 
+    	</property>
+    	<!-- 自动创建表 -->
+    	<property>
+    	  <name>datanucleus.autoCreateTables</name>
+    	  <value>true</value>
+    	</property>
+    	<!-- 自动创建列 -->
+    	<property>
+    	  <name>datanucleus.autoCreateColumns</name>
+    	  <value>true</value>
+    	</property>
+    	<!-- 客户端登录名 -->
+    	<property>
+    	  <name>beeline.hs2.connection.user</name>
+    	  <value>yetao_yang</value>
+    	</property>
+    	<!-- 客户端密码 -->
+    	<property>
+    	  <name>beeline.hs2.connection.password</name>
+    	  <value>123456</value>
+    	</property>
+
     </configuration>
     ```
   * 启动hive
     * `bin/hive --service metastore -p 9083`
       * 启用服务端与客户端服务
+
+### 通过`HiveServer2`链接
+
+* 在`hdfs-site.xml`中添加如下配置
+  ```xml
+  <property>
+    <name>dfs.webhdfs.enabled</name>
+    <value>true</value>
+  </property>
+  ```
+
+* 在`core-site.xml`中添加如下配置
+  ```xml
+  <property>
+    <name>hadoop.proxyuser.yetao_yang.hosts</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.yetao_yang.groups</name>
+    <value>*</value>
+  </property>
+  ```
+
+* 启动`hive`客户端
+  * `./hive/hive-2.3.5/bin/hive --service hiveserver2`
+
+### 通过java查询hive
+
+* 新建maven项目,并添加如下依赖
+  ```xml
+  <!-- https://mvnrepository.com/artifact/org.apache.hive/hive-jdbc -->
+  <dependency>
+      <groupId>org.apache.hive</groupId>
+      <artifactId>hive-jdbc</artifactId>
+      <!-- 与hive版本对应起来 -->
+      <version>2.3.5</version>
+  </dependency>
+  ```
+
+* 通过hive查找数据
+  ```java
+  public class Test01 {
+      private static String driverName = "org.apache.hive.jdbc.HiveDriver";
+
+      private static ResultSet rs = null;
+
+      public static void main(String[] args) throws SQLException {
+          try {
+              Class.forName(driverName);
+          } catch (ClassNotFoundException e) {
+              e.printStackTrace();
+              System.exit(1);
+          }
+
+          Connection con = DriverManager.getConnection("jdbc:hive2://bigdata03:10000/hive_test_db","yetao_yang","123456");
+          Statement stmt = con.createStatement();
+
+          String sql = "SELECT * FROM hive_test_db.account_behavior LIMIT 10";
+          rs = stmt.executeQuery(sql);
+          while (rs.next()) {
+              System.out.println(rs.getLong("timestamp") + "---" +
+                      rs.getLong("insert_time") + "---" +
+                      rs.getString("name") + "--" +
+                      rs.getString("phone") + "--" +
+                      rs.getString("sex") + "--" +
+                      rs.getString("operating") +  "--" +
+                      rs.getString("message") + "--" +
+                      rs.getLong("month") + "--" +
+                      rs.getLong("day"));
+              //System.out.println(rs.getString(1) +"---"+ rs.getString(2)+"---"+ rs.getString(3)+"---"+ rs.getString(4)+"---"+ rs.getString(5)+"---"+ rs.getString(6)+"---"+ rs.getString(7));
+          }
+          rs.close();
+          stmt.close();
+          con.close();
+      }
+  }
+  ```
+
+* 向hive里面导入单条数据
+  ```java
+  public class Test01 {
+      private static String driverName = "org.apache.hive.jdbc.HiveDriver";
+
+      private static ResultSet rs = null;
+
+      public static void main(String[] args) throws SQLException {
+          try {
+              Class.forName(driverName);
+          } catch (ClassNotFoundException e) {
+              e.printStackTrace();
+              System.exit(1);
+          }
+
+          Connection con = DriverManager.getConnection("jdbc:hive2://bigdata03:10000/hive_test_db","yetao_yang","123456");
+          Statement stmt = con.createStatement();
+
+          String sql = "INSERT INTO TABLE account_behavior PARTITION(day=20190605,month=201906) VALUES(1558600216000,1558600216000,\"YYT\",\"18694067935\",\"女\",\"需求分析\",\"15586002160001558600216000YYT18694067935女需求分析\")";
+          stmt.executeUpdate(sql);
+          rs.close();
+          stmt.close();
+          con.close();
+      }
+  }
+  ```

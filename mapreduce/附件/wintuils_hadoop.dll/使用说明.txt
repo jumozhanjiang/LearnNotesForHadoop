@@ -1,0 +1,9 @@
+针对解决由一个HADOOP_HOME and hadoop.home.dir are unset报错引起的window环境连接调试远程hadoop的一系列问题
+1、下载hadoop-2.9.2.tar.gz解压在windows任意目录（如"C:\environment\"）
+2、解压该文件，针对64位系统将"bin_64"内的文件全部拷贝到hadoop程序包的本目录（"C:\environment\hadoop-2.9.2\bin"）
+3、将hadoop.dll复制到C:\Window\System32下
+4、设置HODOOP_HOME环境变量。
+"系统环境变量"添加 
+变量="HADOOP_HOME"，值="C:\environment\hadoop-2.9.2"
+追加"Path"
+变量="Path"，值1="%HADOOP_HOME%\bin",值2="%HADOOP_HOME%\sbin"

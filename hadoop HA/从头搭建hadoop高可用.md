@@ -11,14 +11,14 @@ CentOS Linux release 7.6.1810 (Core)|bigdata03|172.17.57.226|Hadoop 2.8.5|1.8.0_
 > 集群规划
 
 |hadoop01|hadooop02|hadoop03
----|---|---|---
+---|---|---
 HDFS|NameNode</br></br>DataNode|DataNode|SecondaryNameNode</br></br>DataNode
 YARN|NodeManager|ResourceManager</br></br>NodeManager|NodeManager
 
 ### zookeeper的安装参考zookeeper的笔记
 
 ### 配置免密登录
-  ```ssh
+  ```sh
   [yetao_yang@bigdata03 ~]$ ssh-keygen -t rsa
   Generating public/private rsa key pair.
   Enter file in which to save the key (/home/yetao_yang/.ssh/id_rsa):
@@ -290,6 +290,11 @@ YARN|NodeManager|ResourceManager</br></br>NodeManager|NodeManager
 
 * 在`yarn-site.xml`文件里面添加如下配置
   ```xml
+  <!--日志查看地址-->
+  <property>
+    <name>yarn.log.server.url</name>
+    <value>http://bigdata01:19888/jobhistory/logs/</value>
+  </property>
   <!-- 日志聚集功能 -->
   <property>
     <name>yarn.log-aggregation-enable</name>

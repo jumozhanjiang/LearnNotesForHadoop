@@ -18,7 +18,7 @@ Snappy |	否，需要安装 |	Snappy |	.snappy |	否 |	和文本处理一样，�
 * hadoop编码/解码器
 
 压缩格式 |	对应的编码/解码器
--- |
+-- | --
 DEFLATE |	org.apache.hadoop.io.compress.DefaultCodec
 gzip |	org.apache.hadoop.io.compress.GzipCodec
 bzip2 |	org.apache.hadoop.io.compress.BZip2Codec

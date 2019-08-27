@@ -127,3 +127,27 @@ bigdata03 | 从，slaver | cloudera-manager-agent-5.16.2-1.cm5162.p0.7.el7.x86_6
   ```sh
   /etc/init.d/cloudera-scm-server restart
   ```
+
+
+
+
+groupadd supergroup
+usermod -a -G supergroup hdfs
+su - hdfs -s /bin/bash -c "hdfs dfsadmin -refreshUserToGroupsMappings"
+
+/opt/cloudera/cm/lib
+  cm-jar包依赖的位置,添加mysql依赖
+
+/etc/cloudera-scm-server
+  com.cloudera.cmf.db.type=mysql
+  com.cloudera.cmf.db.host=bigdata03
+  com.cloudera.cmf.db.name=scm
+  com.cloudera.cmf.db.user=root
+  com.cloudera.cmf.db.setupType=EXTERNAL
+  com.cloudera.cmf.db.password=123456
+
+/opt/cloudera/parcels/CDH/lib/hive/scripts/metastore/upgrade/mysql
+  hive-schema-2.1.1.mysql.sql
+
+
+https://www.cnblogs.com/fastzhe/p/7444439.html
